@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<!--
+  ros2_control description. use_sim=true drives the joints in Gazebo through
+  gz_ros2_control; use_sim=false uses mock hardware (perfect position tracking),
+  which is handy for testing controllers and the IK in RViz without Gazebo.
+  Phase 2 will add a third option that talks to the Uno through the serial bridge.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- home / rest pose: arm folded up, facing 180 deg in the world (between belt
+       and bins, outside the camera view), gripper open -->
+  <xacro:property name="home" value="${dict(base_yaw=radians(-20), shoulder=pi/2, elbow=pi/2,
+                                            wrist_pitch=pi/2, wrist_roll=0.0,
+                                            finger_left_joint=0.0275, finger_right_joint=0.0275)}"/>
+
+  <xacro:macro name="position_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">${home[name]}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="arm_ros2_control" params="use_sim controllers_file">
+    <ros2_control name="FactoryArm" type="system">
+      <hardware>
+        <xacro:if value="${use_sim}">
+          <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="${use_sim}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="calculate_dynamics">true</param>
+        </xacro:unless>
+      </hardware>
+      <xacro:position_joint name="base_yaw"/>
+      <xacro:position_joint name="shoulder"/>
+      <xacro:position_joint name="elbow"/>
+      <xacro:position_joint name="wrist_pitch"/>
+      <xacro:position_joint name="wrist_roll"/>
+      <xacro:position_joint name="finger_left_joint"/>
+      <xacro:position_joint name="finger_right_joint"/>
+    </ros2_control>
+
+    <xacro:if value="${use_sim}">
+      <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>${controllers_file}</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+
+</robot>

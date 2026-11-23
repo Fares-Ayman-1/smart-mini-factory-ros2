@@ -1,0 +1,36 @@
+# Smart Mini Factory cell configuration (all nodes run on sim time in simulation).
+/**:
+  ros__parameters:
+    use_sim_time: true
+
+spawner:
+  ros__parameters:
+    feed_rate_per_min: 10.0     # products per minute offered to the belt
+    defect_fraction: 0.12       # share of products with a chip or crack
+    min_gap_mm: 70.0            # never spawn closer than this behind the last one
+    # max_products and seed come from the launch arguments
+    # (factory.launch.py max_products:=50 seed:=42)
+
+conveyor_io:
+  ros__parameters:
+    accel_mm_s2: 200.0
+    max_speed_mm_s: 60.0
+    watchdog_s: 2.0
+
+arm:
+  ros__parameters:
+    joint_speed: 1.5            # rad/s average for the largest joint (spline peak ~1.9x, under the 6 rad/s URDF limit)
+    slow_speed: 0.8             # rad/s near the product and the bin
+    approach_height: 0.05
+
+supervisor:
+  ros__parameters:
+    belt_speed_mm_s: 30.0
+    stop_delay_s: 1.1           # IR2 trips at the product's front edge; this centres it in the pick zone
+    jam_timeout_s: 5.0
+    # colour/shape=bin. Defective or unknown products always go to the reject bin B5.
+    sorting_table: ['red/*=B1', 'green/*=B2', 'blue/*=B3', 'yellow/*=B4']
+
+vision:
+  ros__parameters:
+    pick_radius: 0.06

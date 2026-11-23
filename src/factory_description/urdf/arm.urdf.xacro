@@ -1,0 +1,248 @@
+<?xml version="1.0"?>
+<!--
+  Smart Mini Factory arm: base yaw, shoulder, elbow, wrist pitch, wrist roll and a
+  parallel gripper. Dimensions from "Smart Mini Factory - Hardware Architecture".
+
+  Joint conventions match factory_control/ik.py:
+    base_yaw    about +z; joint zero points at 200 deg in the world (270 deg servo
+                covers 65..335 deg)
+    shoulder    about -y: positive raises link 1 (0 = horizontal, pi/2 = up)
+    elbow       about +y: positive bends link 2 down (0 = straight)
+    wrist_pitch about +y: positive bends the gripper down
+    wrist_roll  about the gripper axis
+    finger_*_joint prismatic, 0 = closed, 0.0275 = fully open (55 mm opening)
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="factory_arm">
+
+  <xacro:arg name="use_sim" default="true"/>
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:property name="use_sim" value="$(arg use_sim)"/>
+
+  <!-- geometry (metres) -->
+  <xacro:property name="base_x" value="0.560"/>
+  <xacro:property name="base_y" value="0.240"/>
+  <xacro:property name="pedestal_h" value="0.040"/>
+  <xacro:property name="shoulder_z" value="0.100"/>
+  <xacro:property name="l1" value="0.120"/>
+  <xacro:property name="l2" value="0.120"/>
+  <xacro:property name="l3" value="0.090"/>
+  <xacro:property name="roll_offset" value="0.025"/>
+  <xacro:property name="finger_len" value="0.040"/>
+  <xacro:property name="base_yaw_zero" value="${radians(200)}"/>
+  <xacro:property name="half_open" value="0.0275"/>
+
+  <!-- servo-class limits: effort in N*m, velocity in rad/s (no-load speed at 6 V:
+       25 kg*cm digital ~0.15 s/60 deg, MG996R ~0.17 s/60 deg, MG90S ~0.10 s/60 deg).
+       ros2_control enforces these on every command. -->
+  <xacro:property name="eff_25kg" value="2.4"/>
+  <xacro:property name="eff_mg996" value="1.0"/>
+  <xacro:property name="eff_mg90" value="0.2"/>
+  <xacro:property name="vel" value="6.0"/>
+  <xacro:property name="vel_mg90" value="8.0"/>
+
+  <material name="alu"><color rgba="0.75 0.76 0.78 1"/></material>
+  <material name="dark"><color rgba="0.15 0.15 0.17 1"/></material>
+  <material name="servo"><color rgba="0.12 0.25 0.55 1"/></material>
+  <material name="rubber"><color rgba="0.9 0.45 0.1 1"/></material>
+
+  <!-- inertia helpers -->
+  <xacro:macro name="box_inertial" params="m x y z ox:=0 oy:=0 oz:=0">
+    <inertial>
+      <origin xyz="${ox} ${oy} ${oz}"/>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12}" iyy="${m*(x*x+z*z)/12}" izz="${m*(x*x+y*y)/12}"
+               ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="beam" params="name length mass width:=0.030 height:=0.012 servo_mass:=0">
+    <link name="${name}">
+      <visual>
+        <origin xyz="${length/2} 0 0"/>
+        <geometry><box size="${length} ${width} ${height}"/></geometry>
+        <material name="alu"/>
+      </visual>
+      <visual>
+        <geometry><cylinder radius="0.016" length="${width+0.012}"/></geometry>
+        <origin rpy="${pi/2} 0 0"/>
+        <material name="servo"/>
+      </visual>
+      <collision>
+        <origin xyz="${length/2} 0 0"/>
+        <geometry><box size="${length-0.02} ${width} ${height}"/></geometry>
+      </collision>
+      <xacro:box_inertial m="${mass+servo_mass}" x="${length}" y="${width}" z="${height}"
+                          ox="${length*mass/(2*(mass+servo_mass))}"/>
+    </link>
+  </xacro:macro>
+
+  <!-- ===== links and joints ===== -->
+  <link name="world"/>
+
+  <link name="arm_base">
+    <visual>
+      <origin xyz="0 0 ${pedestal_h/2}"/>
+      <geometry><cylinder radius="0.045" length="${pedestal_h}"/></geometry>
+      <material name="dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${pedestal_h/2}"/>
+      <geometry><cylinder radius="0.045" length="${pedestal_h}"/></geometry>
+    </collision>
+    <xacro:box_inertial m="1.0" x="0.09" y="0.09" z="${pedestal_h}" oz="${pedestal_h/2}"/>
+  </link>
+  <joint name="world_to_arm_base" type="fixed">
+    <parent link="world"/>
+    <child link="arm_base"/>
+    <origin xyz="${base_x} ${base_y} 0"/>
+  </joint>
+
+  <!-- turntable + shoulder bracket (base servo sits under a thrust bearing) -->
+  <link name="turntable">
+    <visual>
+      <origin xyz="0 0 0.005"/>
+      <geometry><cylinder radius="0.040" length="0.010"/></geometry>
+      <material name="alu"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 ${(shoulder_z-pedestal_h)/2}"/>
+      <geometry><box size="0.040 0.050 ${shoulder_z-pedestal_h}"/></geometry>
+      <material name="servo"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${(shoulder_z-pedestal_h)/2}"/>
+      <geometry><box size="0.040 0.050 ${shoulder_z-pedestal_h}"/></geometry>
+    </collision>
+    <xacro:box_inertial m="0.15" x="0.04" y="0.05" z="0.06" oz="0.03"/>
+  </link>
+  <joint name="base_yaw" type="revolute">
+    <parent link="arm_base"/>
+    <child link="turntable"/>
+    <origin xyz="0 0 ${pedestal_h}" rpy="0 0 ${base_yaw_zero}"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${radians(-135)}" upper="${radians(135)}" effort="${eff_25kg}" velocity="${vel}"/>
+    <dynamics damping="0.5" friction="0.05"/>
+  </joint>
+
+  <!-- link 1 carries the elbow servo (55 g) at its far end -->
+  <xacro:beam name="link1" length="${l1}" mass="0.040" servo_mass="0.055"/>
+  <joint name="shoulder" type="revolute">
+    <parent link="turntable"/>
+    <child link="link1"/>
+    <origin xyz="0 0 ${shoulder_z-pedestal_h}"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0" upper="${pi}" effort="${eff_25kg}" velocity="${vel}"/>
+    <dynamics damping="0.5" friction="0.05"/>
+  </joint>
+
+  <!-- link 2 carries the wrist servo (55 g) -->
+  <xacro:beam name="link2" length="${l2}" mass="0.040" servo_mass="0.055"/>
+  <joint name="elbow" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="${l1} 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="${pi}" effort="${eff_mg996}" velocity="${vel}"/>
+    <dynamics damping="0.3" friction="0.02"/>
+  </joint>
+
+  <!-- wrist link: from the wrist pitch axis to the roll servo -->
+  <link name="wrist">
+    <visual>
+      <origin xyz="${roll_offset/2} 0 0"/>
+      <geometry><box size="${roll_offset} 0.026 0.020"/></geometry>
+      <material name="servo"/>
+    </visual>
+    <xacro:box_inertial m="0.02" x="${roll_offset}" y="0.026" z="0.02" ox="${roll_offset/2}"/>
+  </link>
+  <joint name="wrist_pitch" type="revolute">
+    <parent link="link2"/>
+    <child link="wrist"/>
+    <origin xyz="${l2} 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="${pi}" effort="${eff_mg90}" velocity="${vel_mg90}"/>
+    <dynamics damping="0.1" friction="0.01"/>
+  </joint>
+
+  <!-- gripper body (servo + parallel mechanism, 80 g with servo) -->
+  <xacro:property name="palm_len" value="${l3-roll_offset-finger_len/2}"/>
+  <link name="gripper">
+    <visual>
+      <origin xyz="${palm_len/2} 0 0"/>
+      <geometry><box size="${palm_len} 0.070 0.024"/></geometry>
+      <material name="dark"/>
+    </visual>
+    <collision>
+      <origin xyz="${palm_len/2} 0 0"/>
+      <geometry><box size="${palm_len} 0.070 0.024"/></geometry>
+    </collision>
+    <xacro:box_inertial m="0.07" x="${palm_len}" y="0.07" z="0.024" ox="${palm_len/2}"/>
+  </link>
+  <joint name="wrist_roll" type="revolute">
+    <parent link="wrist"/>
+    <child link="gripper"/>
+    <origin xyz="${roll_offset} 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="${-pi/2}" upper="${pi/2}" effort="${eff_mg90}" velocity="${vel_mg90}"/>
+    <dynamics damping="0.05" friction="0.01"/>
+  </joint>
+
+  <!-- tool centre point = fingertip centre, L3 from the wrist pitch axis -->
+  <link name="tcp"/>
+  <joint name="gripper_to_tcp" type="fixed">
+    <parent link="gripper"/>
+    <child link="tcp"/>
+    <origin xyz="${l3-roll_offset} 0 0"/>
+  </joint>
+
+  <xacro:macro name="finger" params="side sign">
+    <link name="finger_${side}">
+      <visual>
+        <origin xyz="${palm_len+finger_len/2} ${sign*0.004} 0"/>
+        <geometry><box size="${finger_len} 0.008 0.022"/></geometry>
+        <material name="rubber"/>
+      </visual>
+      <collision>
+        <origin xyz="${palm_len+finger_len/2} ${sign*0.004} 0"/>
+        <geometry><box size="${finger_len} 0.008 0.022"/></geometry>
+      </collision>
+      <xacro:box_inertial m="0.005" x="${finger_len}" y="0.008" z="0.022"
+                          ox="${palm_len+finger_len/2}"/>
+    </link>
+    <joint name="finger_${side}_joint" type="prismatic">
+      <parent link="gripper"/>
+      <child link="finger_${side}"/>
+      <origin xyz="0 0 0"/>
+      <axis xyz="0 ${sign} 0"/>
+      <limit lower="0" upper="${half_open}" effort="20" velocity="0.25"/>
+      <dynamics damping="1.0" friction="0.1"/>
+    </joint>
+    <gazebo reference="finger_${side}">
+      <mu1>2.0</mu1>
+      <mu2>2.0</mu2>
+      <kp>100000.0</kp>
+      <kd>1.0</kd>
+      <minDepth>0.0005</minDepth>
+      <maxVel>0.01</maxVel>
+    </gazebo>
+  </xacro:macro>
+  <xacro:finger side="left" sign="1"/>
+  <xacro:finger side="right" sign="-1"/>
+
+  <xacro:include filename="arm.ros2_control.xacro"/>
+  <xacro:arm_ros2_control use_sim="${use_sim}" controllers_file="$(arg controllers_file)"/>
+
+  <!-- Simulation-only grasp assist (factory_gz_plugins): locks a product that sits
+       between the closed finger pads to the gripper, releases it on request. -->
+  <xacro:if value="${use_sim}">
+    <gazebo>
+      <plugin filename="factory_grasp_attach" name="factory::GraspAttach">
+        <gripper_link>gripper</gripper_link>
+        <tcp_offset>${l3-roll_offset} 0 0</tcp_offset>
+        <max_offset>0.012</max_offset>
+        <max_dz>0.020</max_dz>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+</robot>
