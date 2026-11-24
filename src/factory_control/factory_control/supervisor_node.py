@@ -82,6 +82,8 @@ class Supervisor(Node):
         self.create_subscription(Bool, '/estop', self.on_estop, 10)
         self.create_subscription(Bool, '/io/watchdog_ok', self.on_watchdog, 10)
         self.create_subscription(Float64, '/conveyor/speed', self.on_speed, 10)
+        self.create_subscription(String, '/io/fault', self.on_io_fault, 10)
+        self.reset_cli = self.create_client(Trigger, '/io/reset')
         self.create_subscription(Detection, '/vision/detection', self.on_detection, 10)
         self.pick_cli = self.create_client(PickPlace, '/arm/pick_place')
         self.halt_cli = self.create_client(Trigger, '/arm/halt')
@@ -99,6 +101,8 @@ class Supervisor(Node):
         self.estop = False
         self.watchdog_ok = False
         self.speed = 0.0
+        self.io_fault = ''        # fault reported by the microcontroller, '' = none
+        self.reset_t = 0.0
         self.last_det = None
         self.stop_at = None
         self.pick_future = None
@@ -168,6 +172,11 @@ class Supervisor(Node):
     def on_watchdog(self, msg):
         self.watchdog_ok = msg.data
 
+    def on_io_fault(self, msg):
+        self.io_fault = msg.data
+        if msg.data and self.state in ('RUNNING', 'STOPPING', 'PICKING'):
+            self.enter_fault('microcontroller: ' + msg.data)
+
     def on_speed(self, msg):
         self.speed = msg.data
 
@@ -211,6 +220,9 @@ class Supervisor(Node):
             return resp
         self.ir2_since = self.now() if self.ir2 else None
         self.set_state('IDLE')
+        self.reset_t = self.now()
+        if self.reset_cli.service_is_ready():     # the microcontroller clears its own fault too
+            self.reset_cli.call_async(Trigger.Request())
         self.relay(True)
         if self.home_cli.service_is_ready():
             self.home_cli.call_async(Trigger.Request())
@@ -254,6 +266,10 @@ class Supervisor(Node):
             self.collect_pick(t)          # a pick that was running when the fault hit
         if s in ('RUNNING', 'STOPPING', 'PICKING'):
             self.relay(True)
+            # A fault that is still there 2 s after a reset (the on-change message was missed).
+            if self.io_fault and t - self.reset_t > 2.0:
+                self.enter_fault('microcontroller: ' + self.io_fault)
+                return
             # Jam = IR2 blocked while the belt should be moving products past it.
             # While PICKING the open fingers reach across the IR2 beam, so it is
             # expected to be blocked then.

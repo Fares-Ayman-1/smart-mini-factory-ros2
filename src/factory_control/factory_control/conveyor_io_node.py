@@ -27,7 +27,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Bool, Empty, Float64
-from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool, Trigger
 
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
@@ -62,6 +62,7 @@ class ConveyorIO(Node):
             self.create_subscription(LaserScan, f'/{k}/scan',
                                      lambda m, k=k: self.on_scan(k, m), 10)
         self.create_service(SetBool, '/estop/set', self.on_estop)
+        self.create_service(Trigger, '/io/reset', self.on_reset)
 
         self.dt = 0.01
         self.create_timer(self.dt, self.tick)
@@ -88,6 +89,10 @@ class ConveyorIO(Node):
         self.publish_states()
         resp.success = True
         resp.message = 'pressed' if self.estop else 'released'
+        return resp
+
+    def on_reset(self, _req, resp):
+        resp.success, resp.message = True, 'sim: nothing to clear on this side'
         return resp
 
     def on_scan(self, key, msg):

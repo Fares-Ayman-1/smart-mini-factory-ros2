@@ -42,7 +42,9 @@ def generate_launch_description():
     rviz = Node(package='rviz2', executable='rviz2', output='log',
                 arguments=['-d', PathJoinSubstitution(
                     [FindPackageShare('factory_description'), 'rviz', 'view.rviz'])],
-                parameters=[{'use_sim_time': True}], condition=IfCondition(LaunchConfiguration('rviz')))
+                parameters=[{'use_sim_time': True}], condition=IfCondition(LaunchConfiguration('rviz')),
+                # RViz's renderer needs X11; under WSLg Qt otherwise picks Wayland and RViz crashes
+                additional_env={'QT_QPA_PLATFORM': 'xcb'})
 
     return LaunchDescription([
         DeclareLaunchArgument('gui', default_value='true'),

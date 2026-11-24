@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.db
+firmware/host/test_core
+firmware/host/uno_sim

@@ -32,6 +32,7 @@ setup(
             'report = factory_control.logger_node:report_main',
             'pose_relay_node = factory_control.pose_relay_node:main',
             'vision_trial = factory_control.vision_trial:main',
+            'uno_bridge_node = factory_control.uno_bridge_node:main',
         ],
     },
 )

@@ -82,25 +82,42 @@ colcon test --packages-select factory_control && colcon test-result --verbose
 
 ## Design notes found while building the sim
 
-- **Hood arm-side wall vs. arm sweep.** The wall at y = 300 mm is only 60 mm from
+These are observations from this simulation, not verified facts about the real
+machine. Several depend on dimensions I assumed (marked *assumed*), so check them
+against your real parts before cutting or printing anything.
+
+- **Hood arm-side wall vs. arm sweep.** Not tried: folding the arm up to pass the wall. The wall at y = 300 mm is only 60 mm from
   the arm's base axis; swinging between the bins and the belt, the arm sweeps
   through it (~225 mm radius at ~150–165°). The sim leaves that side open.
-- **Grasp height.** With 40 mm finger pads centred on the TCP, gripping at the
+- **Grasp height** (*assumed* 40 mm finger pads). With 40 mm finger pads centred on the TCP, gripping at the
   product centre (z = 65 mm) drives the finger tips into the belt; the arm grips
   with the tips 3 mm above the belt instead (TCP z = 73 mm).
-- **Pick stop.** IR2 trips on the product's front edge, so the belt runs ~1.1 s
+- **Pick stop** (*assumed* the product's front edge trips IR2). IR2 trips on the product's front edge, so the belt runs ~1.1 s
   longer to centre the product in the pick zone (`stop_delay_s`).
 - **Camera parallax.** At 200 mm height a 30 mm part's top face appears ~18 mm
   outward at the pick zone; the vision corrects for it.
 - **Camera position.** At the PDF's x = 440 mm the 283 mm view ends at 581 mm and
   clips the top face of a product at the 560 mm pick zone. The sim mounts it at
   x = 470 mm, long image axis along the belt.
-- **IR2 vs. the gripper.** With the fingers open along the belt, a finger crosses
+- **IR2 vs. the gripper** (*assumed* finger and beam geometry). With the fingers open along the belt, a finger crosses
   the IR2 beam (x = 540 mm) while picking at 560 mm, so jam detection only runs
   while the belt is moving.
-- **Wrist roll vs. the rails.** Open finger pads rolled past ~15° (with a product a few mm off centre) hit the lane
+- **Wrist roll vs. the rails** (*assumed* 22 mm wide pads, 54 mm opening). Open finger pads rolled past ~15° (with a product a few mm off centre) hit the lane
   rails (30 mm from the centreline); roll is capped and cylinders get none.
 - **Grasping in simulation.** Friction-only grasps of 30 mm parts slip in Gazebo,
   so a sim-only plugin (`factory_gz_plugins/GraspAttach`) locks the product to
   the gripper once the fingers have closed on it — only if it really sits
   between the pads (±12 mm). Turn it off with the arm's `grasp_assist:=false`.
+
+## Known limits of the simulation
+
+- Fault coverage: E-stop, product jam and a lost supervisor heartbeat are exercised.
+  Servo stall, belt stall and 12 V brown-out are **not** simulated in Gazebo (the
+  Uno firmware handles servo overcurrent and brown-out; those are tested on the PC only).
+- The Gazebo sim does not park the arm when the heartbeat is lost. The Uno firmware does.
+- Joint speed limits in the arm model are estimates, not datasheet values.
+- The 50-product run (50/50 picked, classified and placed; 5/5 defects caught) was
+  a single seeded run whose database was not kept. Rerun it with
+  `factory.sh start gui:=false rviz:=false max_products:=50 seed:=42`.
+- Hardware phase: see `firmware/README.md` (Uno firmware and serial bridge, tested
+  only against a simulated Uno).
