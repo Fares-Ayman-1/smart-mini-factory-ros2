@@ -45,7 +45,7 @@ Headless: `ros2 launch factory_bringup factory.launch.py gui:=false rviz:=false`
 ros2 service call /estop/set std_srvs/srv/SetBool "{data: true}"    # press E-stop -> ESTOP, red
 ros2 service call /estop/set std_srvs/srv/SetBool "{data: false}"   # release
 ros2 service call /cell/reset std_srvs/srv/Trigger                  # acknowledge, back to RUNNING
-ros2 service call /cell/pi_crash std_srvs/srv/SetBool "{data: true}" # stop heartbeats -> watchdog stops the belt
+ros2 service call /cell/pc_crash std_srvs/srv/SetBool "{data: true}" # stop heartbeats -> watchdog stops the belt
 ```
 
 ### Bench tools

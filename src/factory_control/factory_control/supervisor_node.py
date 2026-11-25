@@ -1,4 +1,4 @@
-"""Cell supervisor: the state machine that runs the line (the Pi's job).
+"""Cell supervisor: the state machine that runs the line (runs on the laptop / PC).
 
 States: IDLE -> RUNNING -> STOPPING -> PICKING -> RUNNING, plus FAULT and ESTOP.
 
@@ -14,7 +14,7 @@ States: IDLE -> RUNNING -> STOPPING -> PICKING -> RUNNING, plus FAULT and ESTOP.
             released, acknowledge with /cell/reset.
 
 Services: /cell/start, /cell/stop, /cell/reset (std_srvs/Trigger),
-          /cell/pi_crash (std_srvs/SetBool: stop sending heartbeats, to test the
+          /cell/pc_crash (std_srvs/SetBool: stop sending heartbeats, to test the
           microcontroller watchdog).
 Publishes /cell/status (CellStatus, 5 Hz) and /cell/events (JSON per item).
 """
@@ -91,7 +91,7 @@ class Supervisor(Node):
         self.create_service(Trigger, '/cell/start', self.srv_start)
         self.create_service(Trigger, '/cell/stop', self.srv_stop)
         self.create_service(Trigger, '/cell/reset', self.srv_reset)
-        self.create_service(SetBool, '/cell/pi_crash', self.srv_pi_crash)
+        self.create_service(SetBool, '/cell/pc_crash', self.srv_pc_crash)
 
         self.state = 'IDLE'
         self.fault = ''
@@ -229,7 +229,7 @@ class Supervisor(Node):
         resp.success, resp.message = self.start()
         return resp
 
-    def srv_pi_crash(self, req, resp):
+    def srv_pc_crash(self, req, resp):
         self.heartbeat = not req.data
         resp.success = True
         resp.message = 'heartbeat stopped' if req.data else 'heartbeat resumed'

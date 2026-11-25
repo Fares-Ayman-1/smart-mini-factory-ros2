@@ -49,8 +49,8 @@ EOF
     call /world/factory/create ros_gz_interfaces/srv/SpawnEntity \
       "{entity_factory: {name: jam_block, sdf: '$JAM_SDF', pose: {position: {x: 0.54, y: 0.38, z: 0.066}}}}" ;;
   unjam)            call /world/factory/remove ros_gz_interfaces/srv/DeleteEntity "{entity: {name: jam_block, type: 2}}" ;;
-  pi-crash)         call /cell/pi_crash std_srvs/srv/SetBool "{data: true}" ;;
-  pi-ok)            call /cell/pi_crash std_srvs/srv/SetBool "{data: false}" ;;
+  pc-crash)         call /cell/pc_crash std_srvs/srv/SetBool "{data: true}" ;;
+  pc-ok)            call /cell/pc_crash std_srvs/srv/SetBool "{data: false}" ;;
   speed)            ros2 param set /supervisor belt_speed_mm_s "$(flt "${2:?give mm/s, e.g. 45}")" ;;
   feed)             ros2 param set /spawner feed_rate_per_min "$(flt "${2:?give products/min, e.g. 15}")" ;;
   defects)          ros2 param set /spawner defect_fraction "$(flt "${2:?give 0..1, e.g. 0.5}")" ;;
@@ -66,7 +66,7 @@ usage: factory.sh <command>
   camera            vision debug image
   estop | release | reset          E-stop test
   jam | unjam       block / clear the IR2 beam
-  pi-crash | pi-ok  stop / resume the Pi heartbeat (watchdog test)
+  pc-crash | pc-ok  stop / resume the computer heartbeat (watchdog test)
   pause | resume    stop / start the line
   speed MM_S        belt speed (default 30)
   feed PER_MIN      products per minute (default 10)

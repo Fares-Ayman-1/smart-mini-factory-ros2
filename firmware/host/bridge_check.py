@@ -150,7 +150,7 @@ def main():
     msg = do_reset()
     check('after the link is back, reset restores the line', wait(lambda: state() == 'RUNNING' and uno['state'] == 1, 12), f'{msg}: {state()} uno={uno["state"]}')
 
-    # 6. the supervisor (the Pi side) dies
+    # 6. the supervisor (the computer side) dies
     t0 = time.monotonic()
     os.killpg(sup.pid, signal.SIGKILL)
     check('supervisor dies: the Uno parks the arm after its 2 s heartbeat window', wait(lambda: uno['state'] == 2, 4), f'{uno["state"]}')

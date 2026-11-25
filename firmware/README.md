@@ -7,7 +7,7 @@ same ROS topics.
 
 ```
 supervisor ──ROS topics──> uno_bridge_node ──USB serial 115200──> Uno (uno_factory)
-  (Pi / PC)                 /io/reset, /conveyor/cmd, ...           belt, relay, servos, sensors
+(laptop / PC)                /io/reset, /conveyor/cmd, ...           belt, relay, servos, sensors
 ```
 
 ## Layout
@@ -69,9 +69,45 @@ interrupt. The firmware compiles for the Uno (about 12 KB of 32 KB flash, 0.8 KB
 1. Install the Arduino IDE, open `firmware/uno_factory/uno_factory.ino` (keep the
    three other files in that folder), choose *Arduino Uno*, upload.
 2. Leave `BENCH_MODE` at 1 and the 12 V supply and motors disconnected.
-3. In WSL, attach the Uno (for example with `usbipd`), then:
+3. Pass the Uno from Windows into WSL (see below), then run
    `ros2 run factory_control uno_bridge_node --ros-args -p port:=/dev/ttyACM0`
-   and watch `ros2 topic echo /uno/state` and `/ir1`.
+   (a CH340 clone appears as `/dev/ttyUSB0`) and watch `ros2 topic echo /uno/state` and `/ir1`.
 4. The Uno will refuse the relay until it has a servo pose: pass
    `-p send_home:=true` (with `home_us` set to your measured rest pose) or publish
    six pulse widths to `/uno/servos_us`.
+
+## Laptop setup: USB devices into WSL
+
+There is no Raspberry Pi: the laptop runs ROS 2 inside WSL. WSL does not see USB
+devices by itself, so Windows passes them in with `usbipd-win`. The WSL kernel on
+this PC (6.6.87.2) ships the needed modules (`vhci-hcd`, `cdc-acm`, `ch341`,
+`uvcvideo`). None of the steps below has been tried with a real device yet.
+
+In PowerShell, install once, then list devices:
+
+```powershell
+winget install usbipd
+usbipd list
+```
+
+For each device (use its BUSID from the list). `bind` needs an administrator
+PowerShell and is only needed once; `attach` is needed after every replug:
+
+```powershell
+usbipd bind --busid 1-4
+usbipd attach --wsl --busid 1-4
+```
+
+In Ubuntu, if `/dev/ttyACM0` (or `/dev/ttyUSB0`, `/dev/video0`) does not appear,
+load the module: `sudo modprobe cdc-acm` (or `ch341`, `uvcvideo`). For permission
+errors on the serial port: `sudo usermod -aG dialout $USER`, then restart WSL.
+
+Open points:
+- A webcam over usbipd may be too slow or unreliable at 720p. If so, the options
+  are a lower resolution, reading the camera on the Windows side and sending the
+  frames to ROS, or installing Ubuntu directly on the laptop.
+- The vision node reads `/camera/image_raw`. A real camera needs a camera driver
+  node to publish it (the simulation gets it from Gazebo).
+- The arm is not driven on real hardware yet: `arm_node` sends trajectories to the
+  Gazebo controllers, and nothing converts them into `/uno/servos_us` pulses.
+
